@@ -18,6 +18,7 @@ package com.liato.bankdroid.banking.banks;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -44,41 +45,40 @@ import com.liato.bankdroid.provider.IBankTypes;
 import eu.nullbyte.android.urllib.Urllib;
 
 public class ICABanken extends Bank {
-	private static final String TAG = "ICABanken";
-	private static final String NAME = "ICA Banken";
-	private static final String NAME_SHORT = "icabanken";
-	private static final String URL = "https://mobil.icabanken.se/";
-	private static final int BANKTYPE_ID = IBankTypes.ICABANKEN;
+    private static final String TAG = "ICABanken";
+    private static final String NAME = "ICA Banken";
+    private static final String NAME_SHORT = "icabanken";
+    private static final String URL = "https://mobil.icabanken.se/";
+    private static final int BANKTYPE_ID = IBankTypes.ICABANKEN;
     private static final int INPUT_TYPE_USERNAME = InputType.TYPE_CLASS_PHONE;
     private static final int INPUT_TYPE_PASSWORD = InputType.TYPE_CLASS_PHONE;
     private static final String INPUT_HINT_USERNAME = "ÅÅMMDD-XXXX";
-    private static final boolean STATIC_BALANCE = true;
+    private static final boolean STATIC_BALANCE = false;
 
-	private Pattern reEventValidation = Pattern.compile("__EVENTVALIDATION\"\\s+value=\"([^\"]+)\"");
-	private Pattern reViewState = Pattern.compile("__VIEWSTATE\"\\s+value=\"([^\"]+)\"");
-	private Pattern reError = Pattern.compile("<label\\s+class=\"error\">(.+?)</label>",Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
-	//private Pattern reBalanceDisp = Pattern.compile("account\\.aspx\\?id=([^\"]+).+?>([^<]+)</a.+?Disponibelt([0-9 .,-]+)", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
-	//private Pattern reBalanceSald = Pattern.compile("account\\.aspx\\?id=([^\"]+).+?>([^<]+)</a[^D]*Saldo([0-9 .,-]+)", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
-	private Pattern reBalance = Pattern.compile("account\\.aspx\\?id=([^\"]+).+?>([^<]+)</a.+?Disponibelt([0-9 .,-]+)[^<]*<br/>.+?Saldo([0-9 .,-]+)", Pattern.CASE_INSENSITIVE);
-	private Pattern reTransactions = Pattern.compile("<label>(.+?)</label>\\s*<[^>]+(.+?)</div>\\s*<[^>]+>-\\s*Belopp(.+?)<", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+    private Pattern reEventValidation = Pattern.compile("__EVENTVALIDATION\"\\s+value=\"([^\"]+)\"");
+    private Pattern reViewState = Pattern.compile("__VIEWSTATE\"\\s+value=\"([^\"]+)\"");
+    private Pattern reError = Pattern.compile("<label\\s+class=\"error\">(.+?)</label>",Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+    private Pattern reBalance = Pattern.compile("account\\.aspx\\?id=([^\"]+).+?>([^<]+)</a.+?Disponibelt([0-9 .,-]+)[^<]*<br/>.+?Saldo([0-9 .,-]+)", Pattern.CASE_INSENSITIVE);
+    private Pattern reTransactions = Pattern.compile("<label>(.+?)</label>\\s*<[^>]+(.+?)</div>\\s*<[^>]+>-\\s*Belopp(.+?)<", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+    private HashMap<String, String> mIdMappings = new HashMap<String, String>();
 
-	public ICABanken(Context context) {
-		super(context);
-		super.TAG = TAG;
-		super.NAME = NAME;
-		super.NAME_SHORT = NAME_SHORT;
-		super.BANKTYPE_ID = BANKTYPE_ID;
-		super.URL = URL;
+    public ICABanken(Context context) {
+        super(context);
+        super.TAG = TAG;
+        super.NAME = NAME;
+        super.NAME_SHORT = NAME_SHORT;
+        super.BANKTYPE_ID = BANKTYPE_ID;
+        super.URL = URL;
         super.INPUT_TYPE_USERNAME = INPUT_TYPE_USERNAME;
         super.INPUT_TYPE_PASSWORD = INPUT_TYPE_PASSWORD;
         super.INPUT_HINT_USERNAME = INPUT_HINT_USERNAME;
         super.STATIC_BALANCE = STATIC_BALANCE;
-	}
+    }
 
-	public ICABanken(String username, String password, Context context) throws BankException, LoginException, BankChoiceException {
-		this(context);
-		this.update(username, password);
-	}
+    public ICABanken(String username, String password, Context context) throws BankException, LoginException, BankChoiceException {
+        this(context);
+        this.update(username, password);
+    }
 
     
     @Override
@@ -105,97 +105,101 @@ public class ICABanken extends Bank {
         return new LoginPackage(urlopen, postData, response, "https://mobil2.icabanken.se/login/login.aspx");
     }
 
-	public Urllib login() throws LoginException, BankException {
-		try {
-			LoginPackage lp = preLogin();
-			String response = urlopen.open(lp.getLoginTarget(), lp.getPostData());
-			Matcher matcher = reError.matcher(response);
-			if (matcher.find()) {
-			    String errormsg = Html.fromHtml(matcher.group(1).trim()).toString();
-			    if (errormsg.contains("ord eller personnummer") || errormsg.contains("et alternativ") || errormsg.contains("fyra siffror")) {
-			        throw new LoginException(errormsg);    
-			    }
-			    else {
-	                 throw new BankException(errormsg);    
-			    }
-			}
-		}
-		catch (ClientProtocolException e) {
-			Log.e(TAG, "ClientProtocolException: "+e.getMessage());
-			throw new BankException(e.getMessage());
-		}
-		catch (IOException e) {
-			Log.e(TAG, "IOException: "+e.getMessage());
-			throw new BankException(e.getMessage());
-		}
-		return urlopen;
-	}	
-	
-	@Override
-	public void update() throws BankException, LoginException, BankChoiceException {
-		super.update();
-		if (username == null || password == null || username.length() == 0 || password.length() == 0) {
-			throw new LoginException(res.getText(R.string.invalid_username_password).toString());
-		}
+    public Urllib login() throws LoginException, BankException {
+        try {
+            LoginPackage lp = preLogin();
+            String response = urlopen.open(lp.getLoginTarget(), lp.getPostData());
+            Matcher matcher = reError.matcher(response);
+            if (matcher.find()) {
+                String errormsg = Html.fromHtml(matcher.group(1).trim()).toString();
+                if (errormsg.contains("ord eller personnummer") || errormsg.contains("et alternativ") || errormsg.contains("fyra siffror")) {
+                    throw new LoginException(errormsg);    
+                }
+                else {
+                     throw new BankException(errormsg);    
+                }
+            }
+        }
+        catch (ClientProtocolException e) {
+            Log.e(TAG, "ClientProtocolException: "+e.getMessage());
+            throw new BankException(e.getMessage());
+        }
+        catch (IOException e) {
+            Log.e(TAG, "IOException: "+e.getMessage());
+            throw new BankException(e.getMessage());
+        }
+        return urlopen;
+    }    
+    
+    @Override
+    public void update() throws BankException, LoginException, BankChoiceException {
+        super.update();
+        if (username == null || password == null || username.length() == 0 || password.length() == 0) {
+            throw new LoginException(res.getText(R.string.invalid_username_password).toString());
+        }
 
-		urlopen = login();
-		String response = null;
-		Matcher matcher;
-		try {
-			response = urlopen.open("https://mobil2.icabanken.se/account/overview.aspx");
-			matcher = reBalance.matcher(response);
-			while (matcher.find()) {
+        urlopen = login();
+        String response = null;
+        Matcher matcher;
+        try {
+            response = urlopen.open("https://mobil2.icabanken.se/account/overview.aspx");
+            matcher = reBalance.matcher(response);
+            int accid = 0;
+            while (matcher.find()) {
                 /*
                  * Capture groups:
                  * GROUP                EXAMPLE DATA
-                 * 1: ID                0000000000
+                 * 1: ID                0000000000 - not static?
                  * 2: Name              ICA KONTO
                  * 3: Disponibelt       00.000,00
                  * 4: Saldo             1.655,71
                  *  
-                 */			    
-                accounts.add(new Account(Html.fromHtml(matcher.group(2)).toString().trim() + " (Disponibelt)", Helpers.parseBalance(matcher.group(3).trim()), matcher.group(1).trim()));
-                Account account = new Account(Html.fromHtml(matcher.group(2)).toString().trim() + " (Saldo)", Helpers.parseBalance(matcher.group(4).trim()), "a:" + matcher.group(1).trim());
-                account.setAliasfor(matcher.group(1).trim());
+                 */                
+                mIdMappings.put(Integer.toString(accid), matcher.group(1).trim());           
+                accounts.add(new Account(Html.fromHtml(matcher.group(2)).toString().trim() + " (Disponibelt)", Helpers.parseBalance(matcher.group(3).trim()), Integer.toString(accid)));
+                Account account = new Account(Html.fromHtml(matcher.group(2)).toString().trim() + " (Saldo)", Helpers.parseBalance(matcher.group(4).trim()), "a:" + accid);
+                account.setAliasfor(Integer.toString(accid));
                 accounts.add(account);
 
                 balance = balance.add(Helpers.parseBalance(matcher.group(3)));
-			}
-			if (accounts.isEmpty()) {
-				throw new BankException(res.getText(R.string.no_accounts_found).toString());
-			}
-		}
-		catch (ClientProtocolException e) {
-			throw new BankException(e.getMessage());
-		}
-		catch (IOException e) {
-			throw new BankException(e.getMessage());
-		}
-	}
+                accid++;
+            }
+            if (accounts.isEmpty()) {
+                throw new BankException(res.getText(R.string.no_accounts_found).toString());
+            }
+        }
+        catch (ClientProtocolException e) {
+            throw new BankException(e.getMessage());
+        }
+        catch (IOException e) {
+            throw new BankException(e.getMessage());
+        }
+    }
 
-	@Override
-	public void updateTransactions(Account account, Urllib urlopen) throws LoginException, BankException {
-		super.updateTransactions(account, urlopen);
-		if (account.getId().startsWith("a:")) return; // No transactions for "saldo"-accounts
-		String response = null;
-		Matcher matcher;
-		try {
-			response = urlopen.open("https://mobil2.icabanken.se/account/account.aspx?id="+account.getId());
-			matcher = reTransactions.matcher(response);
-			ArrayList<Transaction> transactions = new ArrayList<Transaction>();
-			while (matcher.find()) {
-				transactions.add(new Transaction(matcher.group(2).trim().substring(8), Html.fromHtml(matcher.group(1)).toString().trim(), Helpers.parseBalance(matcher.group(3))));
-			}
-			account.setTransactions(transactions);
-		} catch (ClientProtocolException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
+    @Override
+    public void updateTransactions(Account account, Urllib urlopen) throws LoginException, BankException {
+        super.updateTransactions(account, urlopen);
+        if (account.getId().startsWith("a:") || !mIdMappings.containsKey(account.getId())) return; // No transactions for "saldo"-accounts
+        String accountId = mIdMappings.get(account.getId());
+        String response = null;
+        Matcher matcher;
+        try {
+            response = urlopen.open("https://mobil2.icabanken.se/account/account.aspx?id="+accountId);
+            matcher = reTransactions.matcher(response);
+            ArrayList<Transaction> transactions = new ArrayList<Transaction>();
+            while (matcher.find()) {
+                transactions.add(new Transaction(matcher.group(2).trim().substring(8), Html.fromHtml(matcher.group(1)).toString().trim(), Helpers.parseBalance(matcher.group(3))));
+            }
+            account.setTransactions(transactions);
+        } catch (ClientProtocolException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        } catch (IOException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
         finally {
             super.updateComplete();
         }
-	}		
+    }
 }
