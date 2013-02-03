@@ -2,6 +2,8 @@ package com.liato.bankdroid.banking.banks;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 
@@ -186,18 +188,26 @@ public class Skandiabanken extends Bank {
 			
 			String accountJsonString = urlopen.open(accountTransactionsUrl);
 			JSONObject accountJSONObj = new JSONObject(accountJsonString);
-			JSONArray transactionsJSONArray = accountJSONObj.getJSONArray("transactions");
-			for (int i = 0; i< transactionsJSONArray.length(); i++)
-			{
-				JSONObject transactionJsonObj = transactionsJSONArray.getJSONObject(i);
-				String date = transactionJsonObj.getString("date"); // time and timestamp also exists in JSON
-				String ammountString = transactionJsonObj.getString("amount");
-				String description = transactionJsonObj.getString("merchant");
-				Transaction transaction = new Transaction(date, description, Helpers.parseBalance(ammountString));
-				transactions.add(transaction);
+			JSONArray transactionsJSONArray = accountJSONObj.optJSONArray("transactions");
+			if (transactionsJSONArray != null) {
+			for (int i = 0; i< transactionsJSONArray.length(); i++) {
+    				JSONObject transactionJsonObj = transactionsJSONArray.getJSONObject(i);
+    				String date = transactionJsonObj.getString("date"); // time and timestamp also exists in JSON
+    				String ammountString = transactionJsonObj.getString("amount");
+    				String description = transactionJsonObj.getString("merchant");
+    				Transaction transaction = new Transaction(date, description, Helpers.parseBalance(ammountString));
+    				transactions.add(transaction);
+    			}
+	            
+			    // Sort transactions by date
+    			Collections.sort(transactions, new Comparator<Transaction>() {
+    	            public int compare(Transaction t1, Transaction t2) {
+    	                return t2.compareTo(t1);
+    	            }
+    	        });
+    			
+    			account.setTransactions(transactions);
 			}
-			
-			account.setTransactions(transactions);
 			
 		} catch (IOException e) {
 			throw new BankException("IOException " + e.getMessage());
